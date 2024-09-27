@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Patient Portal - HealthChain</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/gh/ethereum/web3.js/dist/web3.min.js"></script>
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">HealthChain </a>
+            <button id="logoutBtn" class="btn btn-outline-light">Logout</button>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        <h2 class="mb-4 text-center">Patient Complaint Form</h2>
+        <div id="loginStatus"></div>
+        <div id="patientContent" style="display: none;">
+            <div class="row justify-content-center">
+                <div class="col-md-8">
+                    <div class="card p-4 shadow">
+                        <form id="complaintForm">
+                            <div class="mb-3">
+                                <label for="complaint" class="form-label">Your Complaint</label>
+                                <textarea id="complaint" class="form-control" rows="4" placeholder="Describe your issue..."></textarea>
+                            </div>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Submit Complaint</button>
+                            </div>
+                        </form>
+                        <div class="mt-4" id="status"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        let web3;
+        let contract;
+        let userAccount;
+
+        const contractAddress = "0xd9145CCE52D386f254917e481eB44e9943F39138";
+        const abi = [{
+            "inputs": [{
+                "internalType": "string",
+                "name": "_complaintText",
+                "type": "string"
+            }],
+            "name": "addComplaint",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }, {
+            "anonymous": false,
+            "inputs": [{
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "id",
+                "type": "uint256"
+            }, {
+                "indexed": false,
+                "internalType": "address",
+                "name": "patient",
+                "type": "address"
+            }],
+            "name": "NewComplaint",
+            "type": "event"
+        }, {
+            "inputs": [{
+                "internalType": "address",
+                "name": "_user",
+                "type": "address"
+            }, {
+                "internalType": "string",
+                "name": "_role",
+                "type": "string"
+            }],
+            "name": "registerUser",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }, {
+            "anonymous": false,
+            "inputs": [{
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "id",
+                "type": "uint256"
+            }, {
+                "indexed": false,
+                "internalType": "string",
+                "name": "reply",
+                "type": "string"
+            }],
+            "name": "Replied",
+            "type": "event"
+        }, {
+            "inputs": [{
+                "internalType": "uint256",
+                "name": "_id",
+                "type": "uint256"
+            }, {
+                "internalType": "string",
+                "name": "_reply",
+                "type": "string"
+            }],
+            "name": "replyToComplaint",
+            "outputs": [],
+            "stateMutability": "nonpayable",
+            "type": "function"
+        }, {
+            "inputs": [{
+                "internalType": "address",
+                "name": "_user",
+                "type": "address"
+            }, {
+                "internalType": "string",
+                "name": "_role",
+                "type": "string"
+            }],
+            "name": "checkRole",
+            "outputs": [{
+                "internalType": "bool",
+                "name": "",
+                "type": "bool"
+            }],
+            "stateMutability": "view",
+            "type": "function"
+        }, {
+            "inputs": [],
+            "name": "complaintCount",
+            "outputs": [{
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }],
+            "stateMutability": "view",
+            "type": "function"
+        }, {
+            "inputs": [{
+                "internalType": "uint256",
+                "name": "",
+                "type": "uint256"
+            }],
+            "name": "complaints",
+            "outputs": [{
+                "internalType": "uint256",
+                "name": "id",
+                "type": "uint256"
+            }, {
+                "internalType": "address",
+                "name": "patient",
+                "type": "address"
+            }, {
+                "internalType": "string",
+                "name": "complaintText",
+                "type": "string"
+            }, {
+                "internalType": "string",
+                "name": "reply",
+                "type": "string"
+            }, {
+                "internalType": "bool",
+                "name": "replied",
+                "type": "bool"
+            }],
+            "stateMutability": "view",
+            "type": "function"
+        }, {
+            "inputs": [],
+            "name": "getAllComplaints",
+            "outputs": [{
+                "components": [{
+                    "internalType": "uint256",
+                    "name": "id",
+                    "type": "uint256"
+                }, {
+                    "internalType": "address",
+                    "name": "patient",
+                    "type": "address"
+                }, {
+                    "internalType": "string",
+                    "name": "complaintText",
+                    "type": "string"
+                }, {
+                    "internalType": "string",
+                    "name": "reply",
+                    "type": "string"
+                }, {
+                    "internalType": "bool",
+                    "name": "replied",
+                    "type": "bool"
+                }],
+                "internalType": "struct HealthComplaints.Complaint[]",
+                "name": "",
+                "type": "tuple[]"
+            }],
+            "stateMutability": "view",
+            "type": "function"
+        }, {
+            "inputs": [{
+                "internalType": "uint256",
+                "name": "_id",
+                "type": "uint256"
+            }],
+            "name": "getComplaint",
+            "outputs": [{
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            }, {
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            }],
+            "stateMutability": "view",
+            "type": "function"
+        }, {
+            "inputs": [{
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }],
+            "name": "userRoles",
+            "outputs": [{
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            }],
+            "stateMutability": "view",
+            "type": "function"
+        }];
+
+        async function checkLoginState() {
+            if (typeof window.ethereum !== 'undefined') {
+                web3 = new Web3(window.ethereum);
+                try {
+                    const accounts = await web3.eth.getAccounts();
+                    if (accounts.length > 0) {
+                        userAccount = accounts[0];
+                        contract = new web3.eth.Contract(abi, contractAddress);
+                        const isPatient = await contract.methods.checkRole(userAccount, 'patient');
+                        if (isPatient) {
+                            document.getElementById('loginStatus').innerHTML = `<div class="alert alert-success">Welcome, Patient ${userAccount}</div>`;
+                            document.getElementById('patientContent').style.display = 'block';
+                        } else {
+                            document.getElementById('loginStatus').innerHTML = '<div class="alert alert-danger">You are not authorized as a patient. Please login with a patient account.</div>';
+                        }
+                    } else {
+                        document.getElementById('loginStatus').innerHTML = '<div class="alert alert-warning">Please connect your wallet and login.</div>';
+                    }
+                } catch (error) {
+                    console.error("An error occurred:", error);
+                    document.getElementById('loginStatus').innerHTML = '<div class="alert alert-danger">An error occurred. Please try again.</div>';
+                }
+            } else {
+                document.getElementById('loginStatus').innerHTML = '<div class="alert alert-warning">Please install MetaMask or another Ethereum wallet.</div>';
+            }
+        }
+
+        document.getElementById('complaintForm').onsubmit = async(e) => {
+            e.preventDefault();
+            const complaintText = document.getElementById('complaint').value;
+
+            try {
+                await contract.methods.addComplaint(complaintText).send({
+                    from: userAccount
+                });
+                document.getElementById('status').innerHTML = '<div class="alert alert-success">Complaint Submitted!</div>';
+            } catch (error) {
+                console.error("An error occurred:", error);
+                document.getElementById('status').innerHTML = '<div class="alert alert-danger">An error occurred. Please try again.</div>';
+            }
+        };
+
+        document.getElementById('logoutBtn').onclick = () => {
+            // Clear any session data if necessary
+            window.location.href = 'updated-login-page.html';
+        };
+
+        window.onload = checkLoginState;
+
+        // Listen for account changes
+        if (window.ethereum) {
+            window.ethereum.on('accountsChanged', checkLoginState);
+        }
+    </script>
+</body>
+
+</html>
